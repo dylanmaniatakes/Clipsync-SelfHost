@@ -205,7 +205,10 @@ struct QRGenScreen: View {
     private func refreshQRCodeAndListener() {
         guard serverConfiguration.hasConfiguration else { return }
         qrGenerator.generateQRCode()
-        pairingManager.listenForPairing(macDeviceId: DeviceManager.shared.getDeviceId())
+        pairingManager.listenForPairing(
+            macDeviceId: DeviceManager.shared.getDeviceId(),
+            sessionId: qrGenerator.sessionId
+        )
     }
 }
 

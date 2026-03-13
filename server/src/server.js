@@ -149,7 +149,7 @@ class Store {
     }
   }
 
-  createPairing({ macDeviceId, macDeviceName, androidDeviceId, androidDeviceName }) {
+  createPairing({ macDeviceId, macDeviceName, androidDeviceId, androidDeviceName, sessionId }) {
     this.deactivatePairingsForDevices({ macDeviceId, androidDeviceId });
 
     const pairing = {
@@ -158,6 +158,7 @@ class Store {
       macDeviceName,
       androidDeviceId,
       androidDeviceName,
+      sessionId: typeof sessionId === "string" && sessionId.trim() ? sessionId.trim() : "",
       status: "active",
       createdAt: now(),
       updatedAt: now()
@@ -173,11 +174,16 @@ class Store {
     return pairing ? clone(pairing) : null;
   }
 
-  getLatestPairingForMac(macDeviceId, since) {
+  getLatestPairingForMac(macDeviceId, since, sessionId) {
     const candidates = this.state.pairings
       .filter((pairing) => pairing.macDeviceId === macDeviceId)
       .filter((pairing) => pairing.status === "active")
-      .filter((pairing) => pairing.createdAt >= since)
+      .filter((pairing) => {
+        if (sessionId) {
+          return pairing.sessionId === sessionId;
+        }
+        return pairing.createdAt >= since;
+      })
       .sort((left, right) => right.createdAt - left.createdAt);
 
     return candidates.length > 0 ? clone(candidates[0]) : null;
@@ -424,7 +430,8 @@ const app = createServer(async (req, res) => {
         macDeviceId: requireString(body.macDeviceId, "macDeviceId"),
         macDeviceName: requireString(body.macDeviceName, "macDeviceName"),
         androidDeviceId: requireString(body.androidDeviceId, "androidDeviceId"),
-        androidDeviceName: requireString(body.androidDeviceName, "androidDeviceName")
+        androidDeviceName: requireString(body.androidDeviceName, "androidDeviceName"),
+        sessionId: typeof body.sessionId === "string" ? body.sessionId : ""
       });
 
       json(res, 201, { pairing });
@@ -433,7 +440,8 @@ const app = createServer(async (req, res) => {
 
     if (req.method === "GET" && parts[0] === "api" && parts[1] === "v1" && parts[2] === "pairings" && parts[3] === "by-mac" && parts[4]) {
       const since = Number.parseInt(parsedUrl.searchParams.get("since") || "0", 10);
-      const pairing = store.getLatestPairingForMac(parts[4], Number.isFinite(since) ? since : 0);
+      const sessionId = (parsedUrl.searchParams.get("sessionId") || "").trim();
+      const pairing = store.getLatestPairingForMac(parts[4], Number.isFinite(since) ? since : 0, sessionId);
       json(res, 200, { pairing });
       return;
     }

@@ -63,7 +63,10 @@ struct MenuBarView: View {
                 .background(EffectView(material: .menu, blendingMode: .behindWindow))
                 .onAppear {
                     qrGenerator.generateQRCode()
-                    pairingManager.listenForPairing(macDeviceId: DeviceManager.shared.getDeviceId())
+                    pairingManager.listenForPairing(
+                        macDeviceId: DeviceManager.shared.getDeviceId(),
+                        sessionId: qrGenerator.sessionId
+                    )
                 }
                 .onDisappear { pairingManager.stopListening() }
 

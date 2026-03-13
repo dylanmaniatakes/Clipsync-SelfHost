@@ -54,7 +54,8 @@ object FirestoreManager {
                 "macDeviceName" to json.optString("deviceName")
                     .ifBlank { json.optString("macDeviceName", "Mac") }
                     .trim(),
-                "secret" to json.optString("secret").trim()
+                "secret" to json.optString("secret").trim(),
+                "sessionId" to json.optString("sessionId").trim()
             )
         } catch (_: Exception) {
             null
@@ -101,6 +102,7 @@ object FirestoreManager {
                 val macDeviceId = qrData["macDeviceId"] as? String ?: throw IllegalArgumentException("Missing Mac device ID")
                 val macDeviceName = qrData["macDeviceName"] as? String ?: "Mac"
                 val secret = qrData["secret"] as? String
+                val sessionId = qrData["sessionId"] as? String
 
                 if (!secret.isNullOrBlank()) {
                     DeviceManager.saveEncryptionKey(appContext, secret)
@@ -111,6 +113,9 @@ object FirestoreManager {
                     put("macDeviceName", macDeviceName)
                     put("androidDeviceId", DeviceManager.getDeviceId(appContext))
                     put("androidDeviceName", DeviceManager.getAndroidDeviceName())
+                    if (!sessionId.isNullOrBlank()) {
+                        put("sessionId", sessionId)
+                    }
                 }
 
                 val response = request(

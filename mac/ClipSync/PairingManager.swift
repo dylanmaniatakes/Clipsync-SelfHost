@@ -12,13 +12,11 @@ final class PairingManager: ObservableObject {
 
     private var pairingTask: Task<Void, Never>?
     private var monitorTask: Task<Void, Never>?
-    private var listenStartTime: Int64?
 
-    func listenForPairing(macDeviceId: String) {
+    func listenForPairing(macDeviceId: String, sessionId: String) {
         guard !isPaired else { return }
 
         stopListening()
-        listenStartTime = Int64(Date().timeIntervalSince1970 * 1000)
 
         DispatchQueue.main.async {
             self.pairingError = nil
@@ -31,7 +29,7 @@ final class PairingManager: ObservableObject {
                 do {
                     if let pairing = try await ServerAPI.shared.fetchLatestPairing(
                         for: macDeviceId,
-                        since: self.listenStartTime ?? 0
+                        sessionId: sessionId
                     ) {
                         self.processPairing(pairing)
                         return
@@ -90,7 +88,6 @@ final class PairingManager: ObservableObject {
     func stopListening() {
         pairingTask?.cancel()
         pairingTask = nil
-        listenStartTime = nil
     }
 
     func clearPairing(

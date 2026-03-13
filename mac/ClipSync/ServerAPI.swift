@@ -95,12 +95,12 @@ final class ServerAPI {
         )
     }
 
-    func fetchLatestPairing(for macDeviceId: String, since: Int64) async throws -> ServerPairing? {
+    func fetchLatestPairing(for macDeviceId: String, sessionId: String) async throws -> ServerPairing? {
         let path = "/api/v1/pairings/by-mac/\(macDeviceId)"
         let response: PairingEnvelope = try await request(
             path: path,
             method: "GET",
-            queryItems: [URLQueryItem(name: "since", value: String(since))]
+            queryItems: [URLQueryItem(name: "sessionId", value: sessionId)]
         )
         return response.pairing
     }
