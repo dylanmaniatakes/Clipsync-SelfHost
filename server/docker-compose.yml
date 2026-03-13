@@ -1,0 +1,24 @@
+services:
+  clipsync-server:
+    build:
+      dockerfile: Dockerfile
+    container_name: clipsync-server
+    restart: unless-stopped
+    ports:
+      - "${CLIPSYNC_PORT:-8787}:8787"
+    environment:
+      CLIPSYNC_BIND: 0.0.0.0
+      CLIPSYNC_PORT: 8787
+      CLIPSYNC_DATA_DIR: /app/data
+      CLIPSYNC_SERVER_KEY: ${CLIPSYNC_SERVER_KEY:?Set CLIPSYNC_SERVER_KEY in .env}
+    volumes:
+      - clipsync-server-data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then((res)=>{if(!res.ok) process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  clipsync-server-data:

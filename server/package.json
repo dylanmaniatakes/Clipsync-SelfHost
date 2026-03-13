@@ -1,0 +1,14 @@
+{
+  "name": "clipsync-selfhosted-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted ClipSync server",
+  "type": "module",
+  "bin": {
+    "clipsync-server": "./bin/clipsync-server"
+  },
+  "scripts": {
+    "start": "node ./src/server.js",
+    "dev": "node ./src/server.js"
+  }
+}
