@@ -1,6 +1,7 @@
 services:
   clipsync-server:
     build:
+      context: .
       dockerfile: Dockerfile
     container_name: clipsync-server
     restart: unless-stopped

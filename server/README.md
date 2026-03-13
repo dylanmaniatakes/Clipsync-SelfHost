@@ -40,17 +40,15 @@ You can also use the executable wrapper:
 
 ## Run with Docker
 
-From the repository root:
+From inside the `server/` directory:
 
 ```bash
+cd server
 cp .env.example .env
-```
-
-Set `CLIPSYNC_SERVER_KEY` in `.env`, then start the container:
-
-```bash
 docker compose up --build -d
 ```
+
+Set `CLIPSYNC_SERVER_KEY` in `.env` before starting the container.
 
 Useful commands:
 
@@ -65,7 +63,7 @@ The compose stack stores persistent state in the named volume `clipsync-server-d
 ## Security Notes
 
 - Do not commit `.env`.
-- Do not commit `server/data/store.json` or any copy of your runtime data directory.
+- Do not commit `data/store.json` or any copy of your runtime data directory.
 - `CLIPSYNC_SERVER_KEY` is your shared deployment secret. Rotate it if you ever expose it publicly.
 - Use a reverse proxy with HTTPS if clients will connect over the internet.
 

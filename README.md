@@ -33,17 +33,17 @@ It keeps the Android and macOS clipboard-sharing flow, but replaces the hosted F
 
 ## Self-Hosted Server
 
-The server lives in `server/README.md`. For a Docker deployment:
+The server lives in `server/README.md` and is meant to be portable on its own. You can copy the entire `server/` folder to your host and run it there.
+
+For Docker deployment:
 
 ```bash
-cp /server/.env.example .env
-```
-
-Edit `.env` and set a long random `CLIPSYNC_SERVER_KEY`, then start:
-
-```bash
+cd server
+cp .env.example .env
 docker compose up --build -d
 ```
+
+Edit `.env` and set a long random `CLIPSYNC_SERVER_KEY` before starting.
 
 The server will listen on port `8787` by default. Point both apps at your host address, for example `http://192.168.1.50:8787`, and use the same API key from `.env`.
 
