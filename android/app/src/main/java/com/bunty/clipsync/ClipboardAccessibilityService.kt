@@ -206,6 +206,7 @@ class ClipboardAccessibilityService : AccessibilityService() {
          * changed between two successive ghost-activity reads.
          */
         @Volatile var lastReadClipboardHash: String = ""
+        @Volatile private var activeInstance: ClipboardAccessibilityService? = null
 
         /**
          * Callback invoked by [ClipboardGhostActivity] after it successfully reads the
@@ -256,12 +257,23 @@ class ClipboardAccessibilityService : AccessibilityService() {
                 Log.e(TAG, "Exception in uploadToFirestoreStatic", e)
             }
         }
+
+        fun refreshClipboardListener() {
+            activeInstance?.handler?.post {
+                try {
+                    activeInstance?.startFirestoreListener()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to refresh clipboard listener", e)
+                }
+            }
+        }
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        activeInstance = this
         isRunning = true
         try {
             startFirestoreListener()
@@ -278,6 +290,9 @@ class ClipboardAccessibilityService : AccessibilityService() {
         firestoreListener = null
         handler.removeCallbacksAndMessages(null)
         ignoreNextChange = false
+        if (activeInstance === this) {
+            activeInstance = null
+        }
         isRunning        = false
     }
 

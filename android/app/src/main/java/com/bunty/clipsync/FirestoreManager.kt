@@ -139,6 +139,8 @@ object FirestoreManager {
                     macDeviceName = macDeviceName
                 )
 
+                ClipboardAccessibilityService.refreshClipboardListener()
+
                 withContext(Dispatchers.Main) { onSuccess(pairingId) }
             } catch (error: Exception) {
                 Log.e(TAG, "Failed to create pairing", error)
