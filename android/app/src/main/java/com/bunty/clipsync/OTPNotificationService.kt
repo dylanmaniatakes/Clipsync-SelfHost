@@ -101,30 +101,21 @@ object OTPNotificationService {
      * @return         A Base64 (NO_WRAP) string encoding `[IV][ciphertext+GCM tag]`.
      */
     private fun encryptOTP(context: Context, otpCode: String): String {
-        return try {
-            val keySpec = javax.crypto.spec.SecretKeySpec(
-                hexStringToByteArray(DeviceManager.getEncryptionKey(context)), "AES"
-            )
-            val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        val keySpec = javax.crypto.spec.SecretKeySpec(
+            hexStringToByteArray(DeviceManager.getEncryptionKey(context)), "AES"
+        )
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
 
-            // A unique IV must be used for every encryption operation. Reusing an IV with the
-            // same key would catastrophically break GCM's confidentiality and integrity guarantees.
-            val iv = ByteArray(12).also { java.security.SecureRandom().nextBytes(it) }
-            cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, keySpec, javax.crypto.spec.GCMParameterSpec(128, iv))
+        val iv = ByteArray(12).also { java.security.SecureRandom().nextBytes(it) }
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, keySpec, javax.crypto.spec.GCMParameterSpec(128, iv))
 
-            val ciphertext = cipher.doFinal(otpCode.toByteArray(Charsets.UTF_8))
+        val ciphertext = cipher.doFinal(otpCode.toByteArray(Charsets.UTF_8))
 
-            // Concatenate IV and ciphertext (which already contains the 16-byte GCM auth tag)
-            // into a single buffer so both travel together as one Base64 string.
-            val combined = ByteArray(iv.size + ciphertext.size)
-            System.arraycopy(iv,         0, combined, 0,       iv.size)
-            System.arraycopy(ciphertext, 0, combined, iv.size, ciphertext.size)
+        val combined = ByteArray(iv.size + ciphertext.size)
+        System.arraycopy(iv,         0, combined, 0,       iv.size)
+        System.arraycopy(ciphertext, 0, combined, iv.size, ciphertext.size)
 
-            android.util.Base64.encodeToString(combined, android.util.Base64.NO_WRAP)
-        } catch (e: Exception) {
-            Log.e(TAG, "OTP encryption failed - sending plaintext as fallback", e)
-            otpCode  // Last-resort fallback; the Mac will still receive a usable OTP value.
-        }
+        return android.util.Base64.encodeToString(combined, android.util.Base64.NO_WRAP)
     }
 
     /**

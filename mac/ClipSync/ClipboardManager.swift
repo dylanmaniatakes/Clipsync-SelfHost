@@ -25,8 +25,8 @@ final class ClipboardManager: ObservableObject {
     private var lastCopiedText: String = ""
     private var ignoreNextChange = false
 
-    private var sharedSecretHex: String {
-        UserDefaults.standard.string(forKey: "encryption_key") ?? Secrets.fallbackEncryptionKey
+    private var sharedSecretHex: String? {
+        KeychainManager.load(key: "encryption_key")
     }
 
     func startMonitoring() {
@@ -158,7 +158,7 @@ final class ClipboardManager: ObservableObject {
 
                     for event in response.events {
                         guard let encryptedContent = event.content else { continue }
-                        let content = self.decrypt(encryptedContent) ?? encryptedContent
+                        guard let content = self.decrypt(encryptedContent) else { continue }
                         guard content != self.lastCopiedText else { continue }
 
                         await MainActor.run {
@@ -202,10 +202,11 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func encrypt(_ string: String) -> String? {
-        guard let data = string.data(using: .utf8) else { return nil }
+        guard let data = string.data(using: .utf8),
+              let secretHex = sharedSecretHex else { return nil }
 
         do {
-            let keyData = hexToData(hex: sharedSecretHex)
+            let keyData = hexToData(hex: secretHex)
             let key = SymmetricKey(data: keyData)
             let sealedBox = try AES.GCM.seal(data, using: key)
             return sealedBox.combined?.base64EncodedString()
@@ -215,10 +216,11 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func decrypt(_ base64String: String) -> String? {
-        guard let data = Data(base64Encoded: base64String) else { return nil }
+        guard let data = Data(base64Encoded: base64String),
+              let secretHex = sharedSecretHex else { return nil }
 
         do {
-            let keyData = hexToData(hex: sharedSecretHex)
+            let keyData = hexToData(hex: secretHex)
             let key = SymmetricKey(data: keyData)
             let sealedBox = try AES.GCM.SealedBox(combined: data)
             let decryptedData = try AES.GCM.open(sealedBox, using: key)

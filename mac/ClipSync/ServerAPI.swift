@@ -24,8 +24,6 @@ struct ServerEvent: Codable {
 
 struct ServerInfoResponse: Codable {
     let ok: Bool
-    let host: String
-    let port: Int
 }
 
 struct PairingEnvelope: Codable {

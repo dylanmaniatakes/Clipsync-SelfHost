@@ -139,7 +139,7 @@ final class PairingManager: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "current_pairing_id")
         UserDefaults.standard.removeObject(forKey: "paired_device_name")
         UserDefaults.standard.removeObject(forKey: "is_setup_complete")
-        UserDefaults.standard.removeObject(forKey: "encryption_key")
+        KeychainManager.delete(key: "encryption_key")
 
         ClipboardManager.shared.clearHistory()
         ClipboardManager.shared.stopMonitoring()

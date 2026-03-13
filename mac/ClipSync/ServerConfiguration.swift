@@ -12,7 +12,7 @@ final class ServerConfiguration: ObservableObject {
 
     private init() {
         self.baseURL = UserDefaults.standard.string(forKey: baseURLKey) ?? ""
-        self.apiKey = UserDefaults.standard.string(forKey: apiKeyKey) ?? ""
+        self.apiKey = KeychainManager.load(key: apiKeyKey) ?? ""
     }
 
     var normalizedBaseURL: String {
@@ -32,7 +32,7 @@ final class ServerConfiguration: ObservableObject {
         let normalizedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
 
         UserDefaults.standard.set(normalizedURL, forKey: baseURLKey)
-        UserDefaults.standard.set(normalizedKey, forKey: apiKeyKey)
+        KeychainManager.save(key: apiKeyKey, value: normalizedKey)
 
         self.baseURL = normalizedURL
         self.apiKey = normalizedKey
@@ -40,7 +40,7 @@ final class ServerConfiguration: ObservableObject {
 
     func clear() {
         UserDefaults.standard.removeObject(forKey: baseURLKey)
-        UserDefaults.standard.removeObject(forKey: apiKeyKey)
+        KeychainManager.delete(key: apiKeyKey)
         baseURL = ""
         apiKey = ""
     }

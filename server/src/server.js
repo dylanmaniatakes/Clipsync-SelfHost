@@ -86,7 +86,7 @@ class Store {
 
   save() {
     const tempPath = `${this.filePath}.tmp`;
-    writeFileSync(tempPath, JSON.stringify(this.state, null, 2));
+    writeFileSync(tempPath, JSON.stringify(this.state, null, 2), { mode: 0o600 });
     renameSync(tempPath, this.filePath);
   }
 
@@ -384,10 +384,6 @@ function handleError(res, error) {
 function serverInfo() {
   return {
     ok: true,
-    host: LISTEN_HOST,
-    port: LISTEN_PORT,
-    dataDir,
-    storeFile: storePath,
     authHeader: "X-ClipSync-Key"
   };
 }
@@ -448,6 +444,10 @@ const app = createServer(async (req, res) => {
 
     if (parts[0] === "api" && parts[1] === "v1" && parts[2] === "pairings" && parts[3]) {
       const pairingId = parts[3];
+      if (!/^pairing_[a-f0-9]{24}$/.test(pairingId)) {
+        json(res, 400, { error: "Invalid pairing ID format" });
+        return;
+      }
 
       if (req.method === "GET" && parts.length === 4) {
         const pairing = store.getPairing(pairingId);

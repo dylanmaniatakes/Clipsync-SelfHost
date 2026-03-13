@@ -19,8 +19,8 @@ final class OTPNotificationManager: ObservableObject {
 
     weak var delegate: OTPNotificationDelegate?
 
-    private var sharedSecretHex: String {
-        UserDefaults.standard.string(forKey: "encryption_key") ?? Secrets.fallbackEncryptionKey
+    private var sharedSecretHex: String? {
+        KeychainManager.load(key: "encryption_key")
     }
 
     var hasRecentOTP: Bool {
@@ -156,10 +156,11 @@ final class OTPNotificationManager: ObservableObject {
     }
 
     private func decrypt(_ base64String: String) -> String? {
-        guard let data = Data(base64Encoded: base64String) else { return nil }
+        guard let data = Data(base64Encoded: base64String),
+              let secretHex = sharedSecretHex else { return nil }
 
         do {
-            let keyData = hexToData(hex: sharedSecretHex)
+            let keyData = hexToData(hex: secretHex)
             let key = SymmetricKey(data: keyData)
             let sealedBox = try AES.GCM.SealedBox(combined: data)
             let decryptedData = try AES.GCM.open(sealedBox, using: key)

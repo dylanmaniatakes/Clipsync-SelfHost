@@ -1,5 +1,5 @@
 package com.bunty.clipsync
 
-object Secrets {
-    const val FALLBACK_ENCRYPTION_KEY = "2D8E26D6926A47B685A6DAA1E356D87C4D13736BAA1AD2A94AB9A14C6BB8B4A1"
-}
+// Fallback encryption key removed — all encryption keys must be established during pairing.
+// If getEncryptionKey() throws, the device needs to complete the pairing flow.
+object Secrets

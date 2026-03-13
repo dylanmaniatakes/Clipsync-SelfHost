@@ -15,12 +15,12 @@ final class QRCodeGenerator: ObservableObject {
     private let filter = CIFilter.qrCodeGenerator()
 
     private var sharedSecretHex: String {
-        if let savedKey = UserDefaults.standard.string(forKey: "encryption_key"), !savedKey.isEmpty {
+        if let savedKey = KeychainManager.load(key: "encryption_key"), !savedKey.isEmpty {
             return savedKey
         }
 
         let newKey = generateRandomHexKey()
-        UserDefaults.standard.set(newKey, forKey: "encryption_key")
+        KeychainManager.save(key: "encryption_key", value: newKey)
         return newKey
     }
 
@@ -66,7 +66,17 @@ final class QRCodeGenerator: ObservableObject {
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
 
         guard status == errSecSuccess else {
-            return Secrets.fallbackEncryptionKey
+            // SecRandomCopyBytes failure is extremely unlikely; derive 32 bytes from two UUIDs.
+            let fallback = (UUID().uuid, UUID().uuid)
+            let b = [fallback.0.0, fallback.0.1, fallback.0.2, fallback.0.3,
+                     fallback.0.4, fallback.0.5, fallback.0.6, fallback.0.7,
+                     fallback.0.8, fallback.0.9, fallback.0.10, fallback.0.11,
+                     fallback.0.12, fallback.0.13, fallback.0.14, fallback.0.15,
+                     fallback.1.0, fallback.1.1, fallback.1.2, fallback.1.3,
+                     fallback.1.4, fallback.1.5, fallback.1.6, fallback.1.7,
+                     fallback.1.8, fallback.1.9, fallback.1.10, fallback.1.11,
+                     fallback.1.12, fallback.1.13, fallback.1.14, fallback.1.15]
+            return b.map { String(format: "%02hhX", $0) }.joined()
         }
 
         return bytes.map { String(format: "%02hhX", $0) }.joined()

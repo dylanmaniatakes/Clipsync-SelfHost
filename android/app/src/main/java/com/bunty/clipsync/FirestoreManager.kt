@@ -369,22 +369,17 @@ object FirestoreManager {
     }
 
     private fun encryptData(context: Context, plainText: String): String {
-        return try {
-            val keySpec = javax.crypto.spec.SecretKeySpec(hexStringToByteArray(DeviceManager.getEncryptionKey(context)), "AES")
-            val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
-            val iv = ByteArray(12).also { java.security.SecureRandom().nextBytes(it) }
-            cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, keySpec, javax.crypto.spec.GCMParameterSpec(128, iv))
+        val keySpec = javax.crypto.spec.SecretKeySpec(hexStringToByteArray(DeviceManager.getEncryptionKey(context)), "AES")
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        val iv = ByteArray(12).also { java.security.SecureRandom().nextBytes(it) }
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, keySpec, javax.crypto.spec.GCMParameterSpec(128, iv))
 
-            val ciphertext = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
-            val combined = ByteArray(iv.size + ciphertext.size)
-            System.arraycopy(iv, 0, combined, 0, iv.size)
-            System.arraycopy(ciphertext, 0, combined, iv.size, ciphertext.size)
+        val ciphertext = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
+        val combined = ByteArray(iv.size + ciphertext.size)
+        System.arraycopy(iv, 0, combined, 0, iv.size)
+        System.arraycopy(ciphertext, 0, combined, iv.size, ciphertext.size)
 
-            android.util.Base64.encodeToString(combined, android.util.Base64.NO_WRAP)
-        } catch (error: Exception) {
-            Log.e(TAG, "Encryption failed", error)
-            plainText
-        }
+        return android.util.Base64.encodeToString(combined, android.util.Base64.NO_WRAP)
     }
 
     private fun hexStringToByteArray(value: String): ByteArray {
