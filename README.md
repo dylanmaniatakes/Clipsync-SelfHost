@@ -29,16 +29,14 @@ It keeps the Android and macOS clipboard-sharing flow, but replaces the hosted F
 - `mac/`
   macOS app
 - `server/`
-  Self-hosted Node.js server
-- `docker-compose.yml`
-  Container deployment for the server
+  Self-hosted Node.js server with docker files
 
 ## Self-Hosted Server
 
 The server lives in `server/README.md`. For a Docker deployment:
 
 ```bash
-cp .env.example .env
+cp /server/.env.example .env
 ```
 
 Edit `.env` and set a long random `CLIPSYNC_SERVER_KEY`, then start:
@@ -49,12 +47,6 @@ docker compose up --build -d
 
 The server will listen on port `8787` by default. Point both apps at your host address, for example `http://192.168.1.50:8787`, and use the same API key from `.env`.
 
-## Before You Push
-
-- Keep `.env` local only. It is ignored by Git and should never be committed.
-- Keep `server/data/store.json` private. It contains runtime pairings and the persisted server key.
-- If you tested locally with real device names or pairings, do not force-add anything under `server/data/`.
-- Use your public host or LAN IP in the apps, not `localhost`, unless the client is running on the same machine as the server.
 
 ## Build Clients
 
