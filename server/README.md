@@ -61,9 +61,6 @@ docker compose down
 The compose stack stores persistent state in the named volume `clipsync-server-data`.
 
 ## Security Notes
-
-- Do not commit `.env`.
-- Do not commit `data/store.json` or any copy of your runtime data directory.
 - `CLIPSYNC_SERVER_KEY` is your shared deployment secret. Rotate it if you ever expose it publicly.
 - Use a reverse proxy with HTTPS if clients will connect over the internet.
 
