@@ -22,6 +22,7 @@ object DeviceManager {
     private const val KEY_SYNC_FROM_MAC = "sync_from_mac"
     private const val KEY_SERVER_URL = "server_url"
     private const val KEY_SERVER_API_KEY = "server_api_key"
+    private const val KEY_LAST_CLIPBOARD_CURSOR = "last_clipboard_cursor"
 
     // Regular prefs for non-sensitive data (device identity, sync toggles)
     private fun getPrefs(context: Context): SharedPreferences =
@@ -89,6 +90,7 @@ object DeviceManager {
             putString(KEY_PAIRING_ID, pairingId)
             apply()
         }
+        getPrefs(context).edit().putInt(KEY_LAST_CLIPBOARD_CURSOR, 0).apply()
     }
 
     fun getPairingId(context: Context): String? =
@@ -109,6 +111,7 @@ object DeviceManager {
             remove(KEY_ENCRYPTION_KEY)
             apply()
         }
+        getPrefs(context).edit().remove(KEY_LAST_CLIPBOARD_CURSOR).apply()
     }
 
     fun getEncryptionKey(context: Context): String {
@@ -133,6 +136,13 @@ object DeviceManager {
 
     fun setSyncFromMacEnabled(context: Context, enabled: Boolean) {
         getPrefs(context).edit().putBoolean(KEY_SYNC_FROM_MAC, enabled).apply()
+    }
+
+    fun getLastClipboardCursor(context: Context): Int =
+        getPrefs(context).getInt(KEY_LAST_CLIPBOARD_CURSOR, 0)
+
+    fun saveLastClipboardCursor(context: Context, cursor: Int) {
+        getPrefs(context).edit().putInt(KEY_LAST_CLIPBOARD_CURSOR, cursor).apply()
     }
 
     fun getServerBaseUrl(context: Context): String =

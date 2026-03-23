@@ -160,7 +160,7 @@ object FirestoreManager {
         val deviceId = DeviceManager.getDeviceId(appContext)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val job = scope.launch {
-            var cursor = 0
+            var cursor = DeviceManager.getLastClipboardCursor(appContext)
 
             while (isActive) {
                 try {
@@ -175,7 +175,11 @@ object FirestoreManager {
                         )
                     )
 
-                    cursor = response.body?.optInt("cursor", cursor) ?: cursor
+                    val nextCursor = response.body?.optInt("cursor", cursor) ?: cursor
+                    if (nextCursor != cursor) {
+                        cursor = nextCursor
+                        DeviceManager.saveLastClipboardCursor(appContext, cursor)
+                    }
                     val events = response.body?.optJSONArray("events")
                     if (events != null) {
                         for (index in 0 until events.length()) {
