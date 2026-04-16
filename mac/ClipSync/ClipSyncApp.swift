@@ -14,6 +14,7 @@ struct ClipSyncApp: App {
             "syncFromMac": true
         ])
 
+        DirectLinkServer.shared.startIfNeeded()
         PairingManager.shared.restorePairing()
 
         if PairingManager.shared.isPaired, ServerConfiguration.shared.hasConfiguration {
@@ -163,6 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, OTPNotificationDelegat
 
     func applicationWillTerminate(_ notification: Notification) {
         OTPNotificationManager.shared.stopListening()
+        DirectLinkServer.shared.stop()
     }
 
     func updateDockPolicy() {

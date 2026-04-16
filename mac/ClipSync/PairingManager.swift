@@ -59,6 +59,7 @@ final class PairingManager: ObservableObject {
 
         UserDefaults.standard.set(pairing.pairingId, forKey: "current_pairing_id")
         UserDefaults.standard.set(pairing.androidDeviceName, forKey: "paired_device_name")
+        ClipboardManager.shared.resetSyncState()
 
         startMonitoringPairingStatus(pairingId: pairing.pairingId)
         stopListening()
@@ -141,6 +142,7 @@ final class PairingManager: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "is_setup_complete")
         KeychainManager.delete(key: "encryption_key")
 
+        ClipboardManager.shared.resetSyncState()
         ClipboardManager.shared.clearHistory()
         ClipboardManager.shared.stopMonitoring()
         ClipboardManager.shared.stopListening()

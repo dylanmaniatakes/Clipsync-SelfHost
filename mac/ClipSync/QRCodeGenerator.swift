@@ -13,6 +13,7 @@ final class QRCodeGenerator: ObservableObject {
 
     private let context = CIContext()
     private let filter = CIFilter.qrCodeGenerator()
+    private let serverConfiguration = ServerConfiguration.shared
 
     private var sharedSecretHex: String {
         if let savedKey = KeychainManager.load(key: "encryption_key"), !savedKey.isEmpty {
@@ -28,12 +29,20 @@ final class QRCodeGenerator: ObservableObject {
         let newSessionId = generateSessionId()
         sessionId = newSessionId
 
-        let payload: [String: String] = [
+        var payload: [String: Any] = [
             "macId": DeviceManager.shared.getDeviceId(),
             "deviceName": DeviceManager.shared.getMacName(),
             "secret": sharedSecretHex,
             "sessionId": newSessionId
         ]
+
+        if serverConfiguration.mode == .directLink {
+            let directURLs = serverConfiguration.directCandidateBaseURLs
+            payload["serverUrl"] = directURLs.first ?? ""
+            payload["directUrls"] = directURLs
+            payload["apiKey"] = serverConfiguration.normalizedApiKey
+            payload["connectionMode"] = "direct"
+        }
 
         guard
             let jsonData = try? JSONSerialization.data(withJSONObject: payload),

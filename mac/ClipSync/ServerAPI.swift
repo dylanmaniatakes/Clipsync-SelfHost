@@ -81,7 +81,7 @@ final class ServerAPI {
 
     func validateCurrentConfiguration() async throws {
         let config = ServerConfiguration.shared
-        try await validateConfiguration(baseURL: config.normalizedBaseURL, apiKey: config.normalizedApiKey)
+        try await validateConfiguration(baseURL: config.runtimeBaseURL, apiKey: config.normalizedApiKey)
     }
 
     func validateConfiguration(baseURL: String, apiKey: String) async throws {
@@ -166,7 +166,7 @@ final class ServerAPI {
         body: [String: Any]? = nil
     ) async throws -> T {
         let config = ServerConfiguration.shared
-        let resolvedBaseURL = baseURL ?? config.normalizedBaseURL
+        let resolvedBaseURL = baseURL ?? config.runtimeBaseURL
         let resolvedAPIKey = apiKey ?? config.normalizedApiKey
 
         guard !resolvedBaseURL.isEmpty, !resolvedAPIKey.isEmpty else {

@@ -160,6 +160,7 @@ struct MenuBarView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(isAuthenticating)
+                        .help("Disconnect this Mac and show a fresh pairing QR")
 
                         Spacer()
 
@@ -299,13 +300,13 @@ struct FooterLabelStyle: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 4) {
             configuration.icon
-                .font(.system(size: 10))
+                .font(.system(size: 11, weight: .semibold))
             configuration.title
-                .font(.system(size: 11))
+                .font(.system(size: 12, weight: .medium))
         }
         .foregroundColor(isDestructive ? .red : .secondary)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
         .contentShape(Rectangle())
     }
 }

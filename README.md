@@ -14,6 +14,7 @@ It keeps the Android and macOS clipboard-sharing flow, but replaces the hosted F
 ## Features
 
 - Self-hosted backend with a shared API key
+- Direct-link mode where the Mac hosts the sync API for Android over VPN or LAN
 - Android and macOS clients pair against your own server
 - Clipboard sync in both directions
 - OTP relay from Android to macOS
@@ -67,6 +68,18 @@ Open `mac/ClipSync.xcodeproj` in Xcode, select the `ClipSync` scheme, set your s
 
 ## First Run
 
+Direct link is now the default setup path for fresh installs.
+
+### Direct Link Mode
+
+1. Launch the macOS app and leave it on `Direct Link`.
+2. Enter a port and API key.
+3. Start direct link on the Mac.
+4. Launch the Android app and tap `Scan Direct Link QR`.
+5. Scan the QR code shown on macOS to pair. The QR carries the API key plus all detected non-loopback IPv4 interface URLs, and Android will try them until one works.
+
+### External Server Mode
+
 1. Start your self-hosted server.
 2. Launch the macOS app and enter the server URL and API key.
 3. Launch the Android app and enter the same server URL and API key.
@@ -75,6 +88,7 @@ Open `mac/ClipSync.xcodeproj` in Xcode, select the `ClipSync` scheme, set your s
 ## Notes
 
 - Use a server URL reachable by both devices. `localhost` only works when the client and server are on the same machine.
+- In direct-link mode, the Mac app binds its embedded listener in the background and Android tries the advertised interface URLs from the QR. If macOS firewall prompts for inbound access, allow it.
 - The project is MIT licensed, matching the upstream repository.
 - The checked-in `Secrets.swift` and `Secrets.kt` values are fallback encryption constants for app bootstrapping, not deployment credentials.
 

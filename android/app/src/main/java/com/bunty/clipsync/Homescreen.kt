@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -259,7 +261,7 @@ fun Homescreen(
     // =========================================================================
     // Reset pairing confirmation dialog
     // This is a destructive action: it calls FirestoreManager.clearPairing() which
-    // deletes the pairing document from Firestore and navigates the user back to
+    // deletes the pairing record from the current self-hosted sync endpoint and navigates the user back to
     // onboarding. Shown in red to reinforce the destructive nature of the action.
     // =========================================================================
     if (showResetDialog) {
@@ -267,14 +269,14 @@ fun Homescreen(
             onDismissRequest = { showResetDialog = false },
             title = { Text(text = "Reset Pairing?") },
             text = {
-                Text("This will unpair your device and delete all pairing data from the cloud. You'll need to pair again to use ClipSync.")
+                Text("This will unpair your device and delete the shared pairing data. You'll need to pair again to use ClipSync.")
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showResetDialog = false
 
-                        // Delete the pairing record from Firestore, then call back so the
+                        // Delete the pairing record from the active sync endpoint, then call back so the
                         // parent composable can navigate away from this screen.
                         FirestoreManager.clearPairing(
                             context,
@@ -594,8 +596,8 @@ fun Homescreen(
                     Column {
                         SectionHeader(text = "Actions", fontFamily = robotoFontFamily, scale = scale)
 
-                        // Sends a fixed test string to the Mac via Firestore to verify the
-                        // cloud sync pipeline is working end-to-end.
+                        // Sends a fixed test string to the Mac to verify the current sync path
+                        // is working end-to-end.
                         ActionButton(
                             text = "Send Test Clipboard",
                             icon = Icons.Default.Share,
@@ -609,10 +611,10 @@ fun Homescreen(
 
                         Spacer(modifier = Modifier.height((16 * scale).dp))
 
-                        // Deletes the current clipboard value stored in Firestore so neither
+                        // Deletes the current shared clipboard value so neither
                         // device inadvertently re-applies stale content after a reconnect.
                         ActionButton(
-                            text = "Clear Cloud Clipboard",
+                            text = "Clear Shared Clipboard",
                             icon = Icons.Default.Delete,
                             backgroundColor = Color(0xFFFF3B30),
                             fontFamily = robotoFontFamily,
@@ -659,12 +661,11 @@ fun Homescreen(
 
                         Spacer(modifier = Modifier.height((16 * scale).dp))
 
-                        // Opens the reset pairing confirmation dialog. The actual Firestore
+                        // Opens the reset pairing confirmation dialog. The actual pairing
                         // deletion only happens if the user confirms in the dialog.
-                        ActionButton(
+                        DestructiveActionButton(
                             text = "Reset Pairing",
                             icon = Icons.Default.Refresh,
-                            backgroundColor = Color(0xFFFF9500),
                             fontFamily = robotoFontFamily,
                             scale = scale
                         ) {
@@ -942,6 +943,42 @@ fun ActionButton(text: String, icon: ImageVector, backgroundColor: Color, fontFa
                 fontWeight = FontWeight.SemiBold,
                 fontSize = (17 * scale).coerceIn(15f, 17f).sp,
                 color = backgroundColor
+            )
+        }
+    }
+}
+
+@Composable
+fun DestructiveActionButton(
+    text: String,
+    icon: ImageVector,
+    fontFamily: FontFamily,
+    scale: Float = 1f,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height((58 * scale).dp),
+        shape = RoundedCornerShape((28 * scale).dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFFD94141),
+            contentColor = Color.White
+        )
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size((22 * scale).dp)
+            )
+            Spacer(modifier = Modifier.width((10 * scale).dp))
+            Text(
+                text = text,
+                fontFamily = fontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = (17 * scale).coerceIn(15f, 17f).sp
             )
         }
     }

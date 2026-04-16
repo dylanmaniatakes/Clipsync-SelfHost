@@ -69,17 +69,40 @@ fun ServerConfigScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Self-Hosted Server",
+            text = "Direct Link",
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Enter the base URL and API key for your own ClipSync server before scanning the Mac QR code.",
+            text = "Direct link is the default setup. Start direct link on the Mac, then scan its QR code here.",
             style = MaterialTheme.typography.bodyMedium
         )
 
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "If you prefer a separate self-hosted server, you can still enter its URL and API key below.",
+            style = MaterialTheme.typography.bodySmall
+        )
+
         Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = onContinue,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Scan Direct Link QR")
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Optional: Self-Hosted Server",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
             value = baseUrl,
@@ -134,5 +157,7 @@ fun ServerConfigScreen(
                 Text(if (isTesting) "Connecting..." else "Save & Scan QR")
             }
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
     }
 }

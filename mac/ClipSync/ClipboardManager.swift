@@ -6,6 +6,10 @@ import Foundation
 final class ClipboardManager: ObservableObject {
     static let shared = ClipboardManager()
 
+    private enum StorageKeys {
+        static let lastClipboardCursor = "last_clipboard_cursor"
+    }
+
     @Published var history: [ClipboardItem] = []
     @Published var isSyncPaused: Bool = false
     @Published var lastSyncedTime: Date?
@@ -65,6 +69,10 @@ final class ClipboardManager: ObservableObject {
 
     func clearHistory() {
         history.removeAll()
+    }
+
+    func resetSyncState() {
+        UserDefaults.standard.removeObject(forKey: StorageKeys.lastClipboardCursor)
     }
 
     func stopMonitoring() {
@@ -139,7 +147,7 @@ final class ClipboardManager: ObservableObject {
 
         clipboardTask = Task { [weak self] in
             guard let self else { return }
-            var cursor = 0
+            var cursor = UserDefaults.standard.integer(forKey: StorageKeys.lastClipboardCursor)
 
             while !Task.isCancelled {
                 if self.isSyncPaused || !self.syncToMac {
@@ -154,7 +162,10 @@ final class ClipboardManager: ObservableObject {
                         type: "clipboard",
                         excludeDeviceId: macDeviceId
                     )
-                    cursor = response.cursor
+                    if response.cursor != cursor {
+                        cursor = response.cursor
+                        UserDefaults.standard.set(cursor, forKey: StorageKeys.lastClipboardCursor)
+                    }
 
                     for event in response.events {
                         guard let encryptedContent = event.content else { continue }

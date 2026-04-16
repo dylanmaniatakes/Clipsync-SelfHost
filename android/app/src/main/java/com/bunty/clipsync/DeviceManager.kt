@@ -3,6 +3,7 @@ package com.bunty.clipsync
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import java.util.UUID
@@ -10,6 +11,7 @@ import java.util.UUID
 object DeviceManager {
     private const val PREFS_NAME = "clipsync_prefs"
     private const val SECURE_PREFS_NAME = "clipsync_secure_prefs"
+    private const val TAG = "ClipSyncDeviceManager"
 
     private const val KEY_PAIRED = "is_paired"
     private const val KEY_PAIRED_DEVICE_ID = "paired_device_id"
@@ -30,6 +32,26 @@ object DeviceManager {
 
     // Encrypted prefs for sensitive data (encryption key, API key, server URL, pairing ID)
     private fun getSecurePrefs(context: Context): SharedPreferences {
+        return runCatching {
+            createEncryptedPrefs(context)
+        }.getOrElse { firstError ->
+            Log.e(TAG, "Encrypted preferences failed to open, resetting secure storage", firstError)
+
+            context.deleteSharedPreferences(SECURE_PREFS_NAME)
+            context.applicationContext
+                .getDatabasePath("$SECURE_PREFS_NAME.preferences_pb")
+                .delete()
+
+            runCatching {
+                createEncryptedPrefs(context)
+            }.getOrElse { retryError ->
+                Log.e(TAG, "Encrypted preferences still unavailable, falling back to regular prefs", retryError)
+                getPrefs(context)
+            }
+        }
+    }
+
+    private fun createEncryptedPrefs(context: Context): SharedPreferences {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()

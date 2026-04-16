@@ -157,7 +157,7 @@ struct HomeScreen: View {
 
                                     ZStack {
                                         RePairButton {
-                                            // Delete old Firestore doc, reset isPaired → false
+                                            // Delete the old pairing record, reset isPaired → false
                                             // (AppDelegate's $isPaired sink will auto-hide menu bar)
                                             pairingManager.clearPairing {
                                                 navigateToRePair = true
@@ -235,19 +235,21 @@ struct HomeScreen: View {
                                         } label: {
                                             HStack(spacing: 4) {
                                                 Image(systemName: "link.badge.minus")
-                                                    .font(.system(size: 10, weight: .bold))
-                                                Text("Reset Pairing")
                                                     .font(.system(size: 11, weight: .bold))
+                                                Text("Reset Pairing")
+                                                    .font(.system(size: 12, weight: .bold))
                                             }
                                             .foregroundColor(.white)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
+                                            .padding(.horizontal, 14)
+                                            .padding(.vertical, 9)
                                             .background(
                                                 Capsule()
                                                     .fill(Color.red.opacity(0.75))
                                             )
                                         }
                                         .buttonStyle(.plain)
+                                        .contentShape(Capsule())
+                                        .help("Disconnect this Mac and pair again")
 
                                         Button {
                                             clipboardManager.clearHistory()
@@ -572,13 +574,16 @@ struct RePairButton: View {
                                 .font(.system(size: 24))
                         }
                     }
-                    Text("RePair")
+                    Text("Re-pair")
                         .font(.system(size: 18, weight: .bold))
                 }
                 .foregroundColor(.black)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         .buttonStyle(.plain)
+        .help("Disconnect this device and start pairing again")
         .scaleEffect(isHovered ? 1.15 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.5), value: isHovered)
         .onHover { hovering in
@@ -743,4 +748,3 @@ struct ClipboardHistoryRow: View {
 #Preview {
     HomeScreen()
 }
-

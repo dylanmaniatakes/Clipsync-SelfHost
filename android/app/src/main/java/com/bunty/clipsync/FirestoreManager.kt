@@ -16,6 +16,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import org.json.JSONArray
 
 class PollingRegistration(private val scope: CoroutineScope, private val job: Job) {
     fun remove() {
@@ -55,7 +56,11 @@ object FirestoreManager {
                     .ifBlank { json.optString("macDeviceName", "Mac") }
                     .trim(),
                 "secret" to json.optString("secret").trim(),
-                "sessionId" to json.optString("sessionId").trim()
+                "sessionId" to json.optString("sessionId").trim(),
+                "serverUrl" to json.optString("serverUrl").trim(),
+                "directUrls" to json.optJSONArray("directUrls")?.let(::jsonArrayToList).orEmpty(),
+                "apiKey" to json.optString("apiKey").trim(),
+                "connectionMode" to json.optString("connectionMode").trim()
             )
         } catch (_: Exception) {
             null
@@ -103,9 +108,22 @@ object FirestoreManager {
                 val macDeviceName = qrData["macDeviceName"] as? String ?: "Mac"
                 val secret = qrData["secret"] as? String
                 val sessionId = qrData["sessionId"] as? String
+                val qrServerUrl = qrData["serverUrl"] as? String
+                val qrDirectUrls = qrData["directUrls"] as? List<*>
+                val qrApiKey = qrData["apiKey"] as? String
+                val resolvedApiKey = qrApiKey?.takeIf { it.isNotBlank() } ?: DeviceManager.getServerApiKey(appContext)
+                val candidateUrls = buildCandidateServerUrls(
+                    primaryUrl = qrServerUrl,
+                    additionalUrls = qrDirectUrls,
+                    fallbackUrl = DeviceManager.getServerBaseUrl(appContext)
+                )
 
                 if (!secret.isNullOrBlank()) {
                     DeviceManager.saveEncryptionKey(appContext, secret)
+                }
+
+                if (candidateUrls.isEmpty() || resolvedApiKey.isBlank()) {
+                    throw IllegalStateException("Server URL or API key is missing")
                 }
 
                 val payload = JSONObject().apply {
@@ -118,11 +136,10 @@ object FirestoreManager {
                     }
                 }
 
-                val response = request(
-                    context = appContext,
-                    method = "POST",
-                    path = "/api/v1/pairings",
-                    body = payload
+                val (workingServerUrl, response) = pairWithFirstReachableServer(
+                    candidateUrls = candidateUrls,
+                    apiKey = resolvedApiKey,
+                    payload = payload
                 )
 
                 val pairing = response.body?.optJSONObject("pairing")
@@ -138,6 +155,7 @@ object FirestoreManager {
                     macDeviceId = macDeviceId,
                     macDeviceName = macDeviceName
                 )
+                DeviceManager.saveServerConfiguration(appContext, workingServerUrl, resolvedApiKey)
 
                 ClipboardAccessibilityService.refreshClipboardListener()
 
@@ -487,4 +505,56 @@ object FirestoreManager {
 
     private fun normalizeBaseUrl(raw: String): String =
         raw.trim().trimEnd('/')
+
+    private fun jsonArrayToList(array: JSONArray): List<String> =
+        buildList {
+            for (index in 0 until array.length()) {
+                val value = array.optString(index).trim()
+                if (value.isNotBlank()) {
+                    add(value)
+                }
+            }
+        }
+
+    private fun buildCandidateServerUrls(
+        primaryUrl: String?,
+        additionalUrls: List<*>?,
+        fallbackUrl: String
+    ): List<String> {
+        val candidates = linkedSetOf<String>()
+
+        primaryUrl?.trim()?.takeIf { it.isNotBlank() }?.let { candidates += normalizeBaseUrl(it) }
+        additionalUrls.orEmpty()
+            .mapNotNull { (it as? String)?.trim()?.takeIf(String::isNotBlank) }
+            .map(::normalizeBaseUrl)
+            .forEach { candidates += it }
+        fallbackUrl.trim().takeIf { it.isNotBlank() }?.let { candidates += normalizeBaseUrl(it) }
+
+        return candidates.toList()
+    }
+
+    private fun pairWithFirstReachableServer(
+        candidateUrls: List<String>,
+        apiKey: String,
+        payload: JSONObject
+    ): Pair<String, ApiResponse> {
+        var lastError: Exception? = null
+
+        for (candidateUrl in candidateUrls) {
+            try {
+                val response = request(
+                    baseUrl = candidateUrl,
+                    apiKey = apiKey,
+                    method = "POST",
+                    path = "/api/v1/pairings",
+                    body = payload
+                )
+                return candidateUrl to response
+            } catch (error: Exception) {
+                lastError = error
+            }
+        }
+
+        throw lastError ?: IllegalStateException("Unable to reach any direct-link address")
+    }
 }
