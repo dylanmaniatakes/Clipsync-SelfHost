@@ -15,7 +15,14 @@ import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
+import java.net.Inet4Address
+import java.net.NetworkInterface
+import java.net.SocketTimeoutException
+import java.net.ConnectException
+import java.net.UnknownHostException
 import java.net.URL
+import java.util.concurrent.ExecutorCompletionService
+import java.util.concurrent.Executors
 import org.json.JSONArray
 
 class PollingRegistration(private val scope: CoroutineScope, private val job: Job) {
@@ -30,6 +37,14 @@ private data class ApiResponse(
     val body: JSONObject?
 )
 
+private data class ServerIdentity(
+    val baseUrl: String,
+    val macDeviceId: String,
+    val advertisedUrls: List<String>,
+    val hostCandidates: List<String>,
+    val port: Int?
+)
+
 private class ApiException(message: String, val statusCode: Int) : Exception(message)
 
 object FirestoreManager {
@@ -37,6 +52,9 @@ object FirestoreManager {
     private const val POLL_INTERVAL_MS = 1000L
     private const val CONNECT_TIMEOUT_MS = 5000
     private const val READ_TIMEOUT_MS = 5000
+    private const val DISCOVERY_CONNECT_TIMEOUT_MS = 600
+    private const val DISCOVERY_READ_TIMEOUT_MS = 600
+    private const val DISCOVERY_THREADS = 24
 
     fun parseQRData(qrData: String): Map<String, Any>? {
         return try {
@@ -59,6 +77,7 @@ object FirestoreManager {
                 "sessionId" to json.optString("sessionId").trim(),
                 "serverUrl" to json.optString("serverUrl").trim(),
                 "directUrls" to json.optJSONArray("directUrls")?.let(::jsonArrayToList).orEmpty(),
+                "hostCandidates" to json.optJSONArray("hostCandidates")?.let(::jsonArrayToList).orEmpty(),
                 "apiKey" to json.optString("apiKey").trim(),
                 "connectionMode" to json.optString("connectionMode").trim()
             )
@@ -110,12 +129,16 @@ object FirestoreManager {
                 val sessionId = qrData["sessionId"] as? String
                 val qrServerUrl = qrData["serverUrl"] as? String
                 val qrDirectUrls = qrData["directUrls"] as? List<*>
+                val qrHostCandidates = qrData["hostCandidates"] as? List<*>
                 val qrApiKey = qrData["apiKey"] as? String
+                val connectionMode = qrData["connectionMode"] as? String
                 val resolvedApiKey = qrApiKey?.takeIf { it.isNotBlank() } ?: DeviceManager.getServerApiKey(appContext)
                 val candidateUrls = buildCandidateServerUrls(
                     primaryUrl = qrServerUrl,
                     additionalUrls = qrDirectUrls,
-                    fallbackUrl = DeviceManager.getServerBaseUrl(appContext)
+                    fallbackUrl = DeviceManager.getServerBaseUrl(appContext),
+                    hostCandidates = qrHostCandidates,
+                    port = extractPort(qrServerUrl)
                 )
 
                 if (!secret.isNullOrBlank()) {
@@ -156,6 +179,23 @@ object FirestoreManager {
                     macDeviceName = macDeviceName
                 )
                 DeviceManager.saveServerConfiguration(appContext, workingServerUrl, resolvedApiKey)
+                if (connectionMode == "direct") {
+                    DeviceManager.saveDirectLinkRouting(
+                        context = appContext,
+                        urls = mergeDirectLinkUrls(
+                            preferredUrl = workingServerUrl,
+                            directUrls = qrDirectUrls,
+                            discoveredUrls = emptyList()
+                        ),
+                        hostCandidates = mergeHostCandidates(
+                            existing = emptyList<String>(),
+                            additional = qrHostCandidates.orEmpty()
+                        ),
+                        port = extractPort(workingServerUrl)
+                    )
+                } else {
+                    DeviceManager.clearDirectLinkRouting(appContext)
+                }
 
                 ClipboardAccessibilityService.refreshClipboardListener()
 
@@ -422,14 +462,52 @@ object FirestoreManager {
         query: Map<String, String> = emptyMap(),
         body: JSONObject? = null
     ): ApiResponse {
-        return request(
-            baseUrl = DeviceManager.getServerBaseUrl(context),
-            apiKey = DeviceManager.getServerApiKey(context),
-            method = method,
-            path = path,
-            query = query,
-            body = body
-        )
+        val baseUrl = DeviceManager.getServerBaseUrl(context)
+        val apiKey = DeviceManager.getServerApiKey(context)
+        val directLinkEnabled = DeviceManager.hasDirectLinkRouting(context)
+        val initialBaseUrl = if (baseUrl.isBlank() && directLinkEnabled) {
+            resolveDirectLinkBaseUrl(
+                context = context,
+                apiKey = apiKey,
+                preferredUrl = baseUrl
+            ) ?: baseUrl
+        } else {
+            baseUrl
+        }
+
+        return try {
+            request(
+                baseUrl = initialBaseUrl,
+                apiKey = apiKey,
+                method = method,
+                path = path,
+                query = query,
+                body = body
+            )
+        } catch (error: Exception) {
+            if (!directLinkEnabled || !shouldAttemptDirectLinkRecovery(error)) {
+                throw error
+            }
+
+            val recoveredBaseUrl = resolveDirectLinkBaseUrl(
+                context = context,
+                apiKey = apiKey,
+                preferredUrl = baseUrl
+            ) ?: throw error
+
+            if (normalizeBaseUrl(recoveredBaseUrl) == normalizeBaseUrl(initialBaseUrl)) {
+                throw error
+            }
+
+            request(
+                baseUrl = recoveredBaseUrl,
+                apiKey = apiKey,
+                method = method,
+                path = path,
+                query = query,
+                body = body
+            )
+        }
     }
 
     private fun request(
@@ -438,7 +516,9 @@ object FirestoreManager {
         method: String,
         path: String,
         query: Map<String, String> = emptyMap(),
-        body: JSONObject? = null
+        body: JSONObject? = null,
+        connectTimeout: Int = CONNECT_TIMEOUT_MS,
+        readTimeout: Int = READ_TIMEOUT_MS
     ): ApiResponse {
         val normalizedBaseUrl = normalizeBaseUrl(baseUrl)
         if (normalizedBaseUrl.isBlank()) {
@@ -452,8 +532,8 @@ object FirestoreManager {
         val url = buildUrl(normalizedBaseUrl, path, query)
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = method
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = READ_TIMEOUT_MS
+            this.connectTimeout = connectTimeout
+            this.readTimeout = readTimeout
             setRequestProperty("Accept", "application/json")
             setRequestProperty("X-ClipSync-Key", apiKey)
             doInput = true
@@ -519,13 +599,23 @@ object FirestoreManager {
     private fun buildCandidateServerUrls(
         primaryUrl: String?,
         additionalUrls: List<*>?,
-        fallbackUrl: String
+        fallbackUrl: String,
+        hostCandidates: List<*>? = emptyList<String>(),
+        port: Int? = extractPort(primaryUrl ?: fallbackUrl)
     ): List<String> {
         val candidates = linkedSetOf<String>()
 
         primaryUrl?.trim()?.takeIf { it.isNotBlank() }?.let { candidates += normalizeBaseUrl(it) }
         additionalUrls.orEmpty()
             .mapNotNull { (it as? String)?.trim()?.takeIf(String::isNotBlank) }
+            .map(::normalizeBaseUrl)
+            .forEach { candidates += it }
+        hostCandidates.orEmpty()
+            .mapNotNull { (it as? String)?.trim()?.takeIf(String::isNotBlank) }
+            .mapNotNull { host ->
+                val resolvedPort = port ?: return@mapNotNull null
+                "http://$host:$resolvedPort"
+            }
             .map(::normalizeBaseUrl)
             .forEach { candidates += it }
         fallbackUrl.trim().takeIf { it.isNotBlank() }?.let { candidates += normalizeBaseUrl(it) }
@@ -556,5 +646,194 @@ object FirestoreManager {
         }
 
         throw lastError ?: IllegalStateException("Unable to reach any direct-link address")
+    }
+
+    private fun resolveDirectLinkBaseUrl(
+        context: Context,
+        apiKey: String,
+        preferredUrl: String
+    ): String? {
+        val expectedMacDeviceId = DeviceManager.getPairedMacDeviceId(context)?.trim().orEmpty()
+        if (expectedMacDeviceId.isBlank() || apiKey.isBlank()) {
+            return null
+        }
+
+        val directUrls = DeviceManager.getDirectLinkUrls(context)
+        val hostCandidates = DeviceManager.getDirectLinkHostCandidates(context)
+        val port = DeviceManager.getDirectLinkPort(context) ?: extractPort(preferredUrl)
+        val candidates = linkedSetOf<String>()
+
+        buildCandidateServerUrls(
+            primaryUrl = preferredUrl,
+            additionalUrls = directUrls,
+            fallbackUrl = DeviceManager.getServerBaseUrl(context),
+            hostCandidates = hostCandidates,
+            port = port
+        ).forEach { candidates += it }
+
+        discoverSubnetCandidateUrls(port).forEach { candidates += it }
+
+        val identity = findMatchingServerIdentity(
+            candidateUrls = candidates.toList(),
+            apiKey = apiKey,
+            expectedMacDeviceId = expectedMacDeviceId
+        ) ?: return null
+
+        DeviceManager.saveServerConfiguration(context, identity.baseUrl, apiKey)
+        DeviceManager.saveDirectLinkRouting(
+            context = context,
+            urls = mergeDirectLinkUrls(
+                preferredUrl = identity.baseUrl,
+                directUrls = directUrls,
+                discoveredUrls = identity.advertisedUrls
+            ),
+            hostCandidates = mergeHostCandidates(
+                existing = hostCandidates,
+                additional = identity.hostCandidates
+            ),
+            port = identity.port ?: port
+        )
+
+        return identity.baseUrl
+    }
+
+    private fun findMatchingServerIdentity(
+        candidateUrls: List<String>,
+        apiKey: String,
+        expectedMacDeviceId: String
+    ): ServerIdentity? {
+        val filteredCandidates = candidateUrls
+            .map(::normalizeBaseUrl)
+            .filter(String::isNotBlank)
+            .distinct()
+
+        if (filteredCandidates.isEmpty()) return null
+
+        val executor = Executors.newFixedThreadPool(minOf(DISCOVERY_THREADS, filteredCandidates.size))
+        val completionService = ExecutorCompletionService<ServerIdentity?>(executor)
+
+        try {
+            filteredCandidates.forEach { candidateUrl ->
+                completionService.submit(java.util.concurrent.Callable<ServerIdentity?> {
+                    fetchServerIdentity(candidateUrl, apiKey)
+                        ?.takeIf { it.macDeviceId == expectedMacDeviceId }
+                })
+            }
+
+            repeat(filteredCandidates.size) {
+                val match = completionService.take().get()
+                if (match != null) {
+                    return match
+                }
+            }
+        } finally {
+            executor.shutdownNow()
+        }
+
+        return null
+    }
+
+    private fun fetchServerIdentity(baseUrl: String, apiKey: String): ServerIdentity? {
+        return try {
+            val response = request(
+                baseUrl = baseUrl,
+                apiKey = apiKey,
+                method = "GET",
+                path = "/api/v1/server",
+                connectTimeout = DISCOVERY_CONNECT_TIMEOUT_MS,
+                readTimeout = DISCOVERY_READ_TIMEOUT_MS
+            )
+
+            val body = response.body ?: return null
+            val macDeviceId = body.optString("macDeviceId").trim()
+            if (macDeviceId.isBlank()) {
+                return null
+            }
+
+            ServerIdentity(
+                baseUrl = normalizeBaseUrl(baseUrl),
+                macDeviceId = macDeviceId,
+                advertisedUrls = body.optJSONArray("advertisedUrls")?.let(::jsonArrayToList).orEmpty(),
+                hostCandidates = body.optJSONArray("hostCandidates")?.let(::jsonArrayToList).orEmpty(),
+                port = body.optInt("port", 0).takeIf { it in 1..65535 }
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun discoverSubnetCandidateUrls(port: Int?): List<String> {
+        val resolvedPort = port ?: return emptyList()
+        val candidates = linkedSetOf<String>()
+
+        val interfaces = runCatching { NetworkInterface.getNetworkInterfaces().toList() }
+            .getOrDefault(emptyList())
+
+        for (networkInterface in interfaces) {
+            if (!networkInterface.isUp || networkInterface.isLoopback) continue
+
+            for (interfaceAddress in networkInterface.interfaceAddresses) {
+                val inetAddress = interfaceAddress.address as? Inet4Address ?: continue
+                if (inetAddress.isLoopbackAddress || inetAddress.isLinkLocalAddress) continue
+
+                val hostAddress = inetAddress.hostAddress?.substringBefore('%') ?: continue
+                val octets = hostAddress.split(".")
+                if (octets.size != 4) continue
+
+                val ownLastOctet = octets[3].toIntOrNull() ?: continue
+                val prefix = "${octets[0]}.${octets[1]}.${octets[2]}"
+
+                for (lastOctet in 1..254) {
+                    if (lastOctet == ownLastOctet) continue
+                    candidates += "http://$prefix.$lastOctet:$resolvedPort"
+                }
+            }
+        }
+
+        return candidates.toList()
+    }
+
+    private fun shouldAttemptDirectLinkRecovery(error: Exception): Boolean =
+        error is UnknownHostException ||
+            error is ConnectException ||
+            error is SocketTimeoutException ||
+            error is java.io.IOException
+
+    private fun mergeDirectLinkUrls(
+        preferredUrl: String,
+        directUrls: List<*>?,
+        discoveredUrls: List<String>
+    ): List<String> {
+        val merged = linkedSetOf<String>()
+        preferredUrl.trim().takeIf { it.isNotBlank() }?.let { merged += normalizeBaseUrl(it) }
+        directUrls.orEmpty()
+            .mapNotNull { (it as? String)?.trim()?.takeIf(String::isNotBlank) }
+            .map(::normalizeBaseUrl)
+            .forEach { merged += it }
+        discoveredUrls
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .map(::normalizeBaseUrl)
+            .forEach { merged += it }
+        return merged.toList()
+    }
+
+    private fun mergeHostCandidates(existing: List<*>, additional: List<*>): List<String> {
+        val merged = linkedSetOf<String>()
+        existing.orEmpty()
+            .mapNotNull { (it as? String)?.trim()?.takeIf(String::isNotBlank) }
+            .forEach { merged += it }
+        additional.orEmpty()
+            .mapNotNull { (it as? String)?.trim()?.takeIf(String::isNotBlank) }
+            .forEach { merged += it }
+        return merged.toList()
+    }
+
+    private fun extractPort(baseUrl: String?): Int? {
+        val url = baseUrl?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        return runCatching {
+            val parsed = URL(if (url.startsWith("http://") || url.startsWith("https://")) url else "http://$url")
+            if (parsed.port > 0) parsed.port else parsed.defaultPort.takeIf { it > 0 }
+        }.getOrNull()
     }
 }

@@ -494,7 +494,15 @@ final class DirectLinkServer: ObservableObject {
             guard isAuthorized(request) else {
                 return errorResponse(statusCode: 401, message: "Unauthorized")
             }
-            return jsonResponse(statusCode: 200, payload: ["ok": true])
+            return jsonResponse(statusCode: 200, payload: [
+                "ok": true,
+                "connectionMode": "direct",
+                "macDeviceId": DeviceManager.shared.getDeviceId(),
+                "macDeviceName": DeviceManager.shared.getMacName(),
+                "hostCandidates": DeviceManager.shared.getNetworkHostCandidates(),
+                "advertisedUrls": ServerConfiguration.shared.directCandidateBaseURLs,
+                "port": DirectLinkServer.shared.boundPort ?? ServerConfiguration.shared.directPort
+            ])
         }
 
         guard isAuthorized(request) else {

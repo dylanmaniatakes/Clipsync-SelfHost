@@ -40,6 +40,7 @@ final class QRCodeGenerator: ObservableObject {
             let directURLs = serverConfiguration.directCandidateBaseURLs
             payload["serverUrl"] = directURLs.first ?? ""
             payload["directUrls"] = directURLs
+            payload["hostCandidates"] = DeviceManager.shared.getNetworkHostCandidates()
             payload["apiKey"] = serverConfiguration.normalizedApiKey
             payload["connectionMode"] = "direct"
         }

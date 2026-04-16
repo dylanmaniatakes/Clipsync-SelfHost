@@ -6,6 +6,7 @@ import android.os.Build
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import org.json.JSONArray
 import java.util.UUID
 
 object DeviceManager {
@@ -25,6 +26,9 @@ object DeviceManager {
     private const val KEY_SERVER_URL = "server_url"
     private const val KEY_SERVER_API_KEY = "server_api_key"
     private const val KEY_LAST_CLIPBOARD_CURSOR = "last_clipboard_cursor"
+    private const val KEY_DIRECT_LINK_URLS = "direct_link_urls"
+    private const val KEY_DIRECT_LINK_HOSTS = "direct_link_hosts"
+    private const val KEY_DIRECT_LINK_PORT = "direct_link_port"
 
     // Regular prefs for non-sensitive data (device identity, sync toggles)
     private fun getPrefs(context: Context): SharedPreferences =
@@ -118,6 +122,9 @@ object DeviceManager {
     fun getPairingId(context: Context): String? =
         getSecurePrefs(context).getString(KEY_PAIRING_ID, null)
 
+    fun getPairedMacDeviceId(context: Context): String? =
+        getPrefs(context).getString(KEY_PAIRED_DEVICE_ID, null)
+
     fun getPairedMacDeviceName(context: Context): String =
         getPrefs(context).getString(KEY_PAIRED_DEVICE_NAME, "Unknown Device") ?: "Unknown Device"
 
@@ -134,6 +141,7 @@ object DeviceManager {
             apply()
         }
         getPrefs(context).edit().remove(KEY_LAST_CLIPBOARD_CURSOR).apply()
+        clearDirectLinkRouting(context)
     }
 
     fun getEncryptionKey(context: Context): String {
@@ -195,6 +203,66 @@ object DeviceManager {
         }
     }
 
+    fun saveDirectLinkRouting(
+        context: Context,
+        urls: List<String>,
+        hostCandidates: List<String>,
+        port: Int?
+    ) {
+        getPrefs(context).edit().apply {
+            putString(KEY_DIRECT_LINK_URLS, JSONArray(urls.distinct()).toString())
+            putString(KEY_DIRECT_LINK_HOSTS, JSONArray(hostCandidates.distinct()).toString())
+            if (port != null && port in 1..65535) {
+                putInt(KEY_DIRECT_LINK_PORT, port)
+            } else {
+                remove(KEY_DIRECT_LINK_PORT)
+            }
+            apply()
+        }
+    }
+
+    fun getDirectLinkUrls(context: Context): List<String> =
+        getStringList(getPrefs(context).getString(KEY_DIRECT_LINK_URLS, null))
+
+    fun getDirectLinkHostCandidates(context: Context): List<String> =
+        getStringList(getPrefs(context).getString(KEY_DIRECT_LINK_HOSTS, null))
+
+    fun getDirectLinkPort(context: Context): Int? {
+        val port = getPrefs(context).getInt(KEY_DIRECT_LINK_PORT, 0)
+        return port.takeIf { it in 1..65535 }
+    }
+
+    fun hasDirectLinkRouting(context: Context): Boolean =
+        getPairedMacDeviceId(context)?.isNotBlank() == true &&
+            (getDirectLinkUrls(context).isNotEmpty() ||
+                getDirectLinkHostCandidates(context).isNotEmpty() ||
+                getDirectLinkPort(context) != null)
+
+    fun clearDirectLinkRouting(context: Context) {
+        getPrefs(context).edit().apply {
+            remove(KEY_DIRECT_LINK_URLS)
+            remove(KEY_DIRECT_LINK_HOSTS)
+            remove(KEY_DIRECT_LINK_PORT)
+            apply()
+        }
+    }
+
     private fun normalizeBaseUrl(raw: String): String =
         raw.trim().trimEnd('/')
+
+    private fun getStringList(raw: String?): List<String> {
+        if (raw.isNullOrBlank()) return emptyList()
+
+        return runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val value = array.optString(index).trim()
+                    if (value.isNotBlank()) {
+                        add(value)
+                    }
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
 }
